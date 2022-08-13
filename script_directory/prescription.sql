@@ -127,7 +127,9 @@ ORDER BY total_cost DESC;
 
 /*5a. How many CBSAs are in Tennessee? Warning: The cbsa table contains information for all states, not just Tennessee.*/
 
-SELECT DISTINCT cbsa
+--ANSWER: 10 CBSAs in Tennessee
+
+SELECT COUNT(DISTINCT cbsa)
 FROM cbsa
 WHERE cbsaname LIKE '%TN%';
 
@@ -148,27 +150,64 @@ ORDER BY combined_pop DESC;
 
 /*5c. What is the largest (in terms of population) county which is not included in a CBSA? Report the county name and population.*/
 
---ANSWER:
+--ANSWER: Largest: Sevier 95523 / Smallest: Pickett 5071
 
+SELECT county, cbsa, SUM(population) AS total_pop
+FROM fips_county AS f
+LEFT JOIN cbsa AS c
+ON f.fipscounty = c.fipscounty
+LEFT JOIN population AS p
+ON f.fipscounty = p.fipscounty
+WHERE TRUE
+AND c.cbsa IS NULL AND state = 'TN' AND county != 'STATEWIDE'
+GROUP BY county, cbsa
+ORDER BY total_pop DESC;
 
+SELECT county, cbsa, SUM(population) AS total_pop
+FROM fips_county AS f
+LEFT JOIN cbsa AS c
+ON f.fipscounty = c.fipscounty
+LEFT JOIN population AS p
+ON f.fipscounty = p.fipscounty
+WHERE TRUE 
+AND c.cbsa IS NULL AND state = 'TN' AND county != 'STATEWIDE'
+GROUP BY county, cbsa
+ORDER BY total_pop;
 
 /*6a. Find all rows in the prescription table where total_claims is at least 3000. Report the drug_name and the total_claim_count.*/
 
---ANSWER:
+--ANSWER: 9 rows
 
 SELECT p.drug_name, total_claim_count
 FROM prescription AS p
 LEFT JOIN drug AS d
 ON p.drug_name = d.drug_name
-WHERE total_claim_count >= 3000;
+WHERE total_claim_count >= 3000
+ORDER BY total_claim_count DESC;
 
 /*6b. For each instance that you found in part a, add a column that indicates whether the drug is an opioid.*/
 
---ANSWER:
+--ANSWER: OXYCODONE HCL 4538 / HYDROCODONE-ACETAMINOPHEN 3376
 
-
+SELECT p.drug_name, total_claim_count
+FROM prescription AS p
+LEFT JOIN drug AS d
+ON p.drug_name = d.drug_name
+WHERE total_claim_count >= 3000 AND opioid_drug_flag = 'Y'
+ORDER BY total_claim_count DESC;
 
 /*6c. Add another column to you answer from the previous part which gives the prescriber first and last name associated with each row.*/
+
+SELECT p.drug_name, total_claim_count,
+  nppes_provider_first_name,
+  nppes_provider_last_org_name
+FROM prescription AS p
+LEFT JOIN drug AS d
+ON p.drug_name = d.drug_name
+LEFT JOIN prescriber AS pr
+ON p.npi = pr.npi
+WHERE total_claim_count >= 3000 AND opioid_drug_flag = 'Y'
+ORDER BY total_claim_count DESC;
 
 /*The goal of this exercise is to generate a full list of all pain management specialists in Nashville and the number of claims they had for each opioid. Hint: The results from all 3 parts will have 637 rows.*/
 
