@@ -53,9 +53,9 @@ ORDER BY opioid_flag DESC;
 
 /*2c. Challenge Question: Are there any specialties that appear in the prescriber table that have no associated prescriptions in the prescription table?*/
 
---ANSWER:
+--ANSWER: 92 specialties total
 
-SELECT specialty_description, SUM(total_claim_count)
+SELECT specialty_description, COUNT(total_claim_count)
 FROM prescriber
 LEFT JOIN prescription
 USING (npi)
@@ -70,9 +70,9 @@ GROUP BY specialty_description;
 
 /*3a. Which drug (generic_name) had the highest total drug cost?*/
 
---ANSWER: PIRFENIDONE / 2829174
+--ANSWER: INSULIN GLARGINE,HUM.REC.ANLOG / 104264066
 
-SELECT generic_name, ROUND(MAX(total_drug_cost),0) AS high_cost
+SELECT generic_name, ROUND(SUM(total_drug_cost),0) AS high_cost
 FROM drug
 LEFT JOIN prescription
 USING (drug_name)
@@ -82,14 +82,16 @@ ORDER BY high_cost DESC;
 
 /*3b. Which drug (generic_name) has the hightest total cost per day? **Bonus: Round your cost per day column to 2 decimal places. Google ROUND to see how this works.*/
 
---ANSWER: PIRFENIDONE / 7751.16
+--ANSWER: PIRFENIDONE / 7751.16 ( ... / 365)
+--NOTES: Changes to IMMUN GLOB / 7141.11 ( ... / total_day_supply)
+--       Changes to LEDIPASVIR / 11414.04 ( SUM(total_drug_cost) )
 
-SELECT generic_name, ROUND(MAX(total_drug_cost) / 365,2) AS high_cost
+SELECT generic_name, ROUND(SUM(total_drug_cost) / total_day_supply,2) AS high_cost
 FROM drug
 LEFT JOIN prescription
 USING (drug_name)
-WHERE total_drug_cost_ge65 IS NOT null
-GROUP BY generic_name
+WHERE total_drug_cost IS NOT null
+GROUP BY generic_name, total_day_supply
 ORDER BY high_cost DESC;
 
 /*4a. For each drug in the drug table, return the drug name and then a column named 'drug_type' which says 'opioid' for drugs which have opioid_drug_flag = 'Y', says 'antibiotic' for those drugs which have antibiotic_drug_flag = 'Y', and says 'neither' for all other drugs.*/
@@ -105,42 +107,66 @@ FROM prescription AS p
 LEFT JOIN drug
 USING (drug_name)
 
-
 /*4b. Building off of the query you wrote for part a, determine whether more was spent (total_drug_cost) on opioids or on antibiotics. Hint: Format the total costs as MONEY for easier comparision.*/
 
---ANSWER: <<start using the base code from 4a>>
+--ANSWER: Opioid $105,080,626.37 / Antibiotic $38,435,121.26
 
-SELECT p.drug_name,
-  CASE WHEN opioid_drug_flag = 'Y' THEN 'opioid'
-       WHEN antibiotic_drug_flag = 'Y' THEN 'antibiotic'
-       ELSE 'neither' END
-       AS drug_type
-FROM prescription AS p
-LEFT JOIN drug
-USING (drug_name)
+SELECT subquery.drug_type,
+       CAST(SUM(total_drug_cost) AS money) AS total_cost
+FROM
+  (SELECT drug_name,
+    CASE WHEN opioid_drug_flag = 'Y' THEN 'opioid'
+         WHEN antibiotic_drug_flag = 'Y' THEN 'antibiotic'
+         ELSE 'neither' END AS drug_type
+   FROM drug) AS subquery
+LEFT JOIN prescription
+ON subquery.drug_name = prescription.drug_name
+WHERE drug_type = 'opioid' OR drug_type = 'antibiotic'
+GROUP BY subquery.drug_type
+ORDER BY total_cost DESC;
 
 /*5a. How many CBSAs are in Tennessee? Warning: The cbsa table contains information for all states, not just Tennessee.*/
 
-SELECT COUNT(*) AS cbsa_tn
+SELECT DISTINCT cbsa
 FROM cbsa
-WHERE cbsaname LIKE '%TN';
+WHERE cbsaname LIKE '%TN%';
 
 /*5b. Which cbsa has the largest combined population? Which has the smallest? Report the CBSA name and total population.*/
 
-SELECT DISTINCT c.cbsaname, SUM(p.population)
+/*  ANSWER: Nashville-Davidson-Murfreesboro-Franklin : 1830410
+            Morristown                               : 116352  */
+
+SELECT DISTINCT c.cbsaname, SUM(p.population) AS combined_pop
 FROM cbsa AS c
 LEFT JOIN fips_county AS f
 USING (fipscounty)
 LEFT JOIN population as p
 USING (fipscounty)
 WHERE p.population IS NOT null
-GROUP BY c.cbsaname, p.population;
+GROUP BY c.cbsaname
+ORDER BY combined_pop DESC;
 
 /*5c. What is the largest (in terms of population) county which is not included in a CBSA? Report the county name and population.*/
 
+--ANSWER:
+
+
+
 /*6a. Find all rows in the prescription table where total_claims is at least 3000. Report the drug_name and the total_claim_count.*/
 
+--ANSWER:
+
+SELECT p.drug_name, total_claim_count
+FROM prescription AS p
+LEFT JOIN drug AS d
+ON p.drug_name = d.drug_name
+WHERE total_claim_count >= 3000;
+
 /*6b. For each instance that you found in part a, add a column that indicates whether the drug is an opioid.*/
+
+--ANSWER:
+
+
 
 /*6c. Add another column to you answer from the previous part which gives the prescriber first and last name associated with each row.*/
 
